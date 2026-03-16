@@ -260,6 +260,5 @@ async def on_ready():
     print(f'✅ BB System Online!');
     bot.add_view(MoneyTicketView())
 
-TOKEN = os.getenv("TOKEN")
-
-bot.run('TOKEN')
+token = os.getenv('DISCORD_TOKEN')
+bot.run(token)
