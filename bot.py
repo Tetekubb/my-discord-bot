@@ -22,7 +22,7 @@ BANNER_URL = "https://img2.pic.in.th/pic/rainbow-color-1.gif"
 WHEEL_GIF = "https://i.gifer.com/Vp3R.gif" 
 
 # รายชื่อคำหยาบ (รวมคำหลบ) 
-BANNED_WORDS = ["ควย", "เย็ด", "หี", "แตด", "มึง", "กู", "เหี้ย", "สัส", "ค.ว.ย", "เ-ย", "ส.ัส", "ตอแหล", "แหล", "สก๊อย", "ส้นตีน", "ควาย", "กุ", "เมิง", "ประสาท"] 
+BANNED_WORDS = ["ควย", "เย็ด", "หี", "แตด", "มึง", "กู", "เหี้ย", "สัส", "ค.ว.ย", "เ-ย", "ส.ัส", "ตอแหล", "แหล", "สก๊อย", "ส้นตีน", "ควาย", "กุ", "เมิง", "ประสาท", "เงี่ยน", "จู๋", "เขมร", "ลาบ", "ลาว", "กระจอก", "กาก", "ควE"] 
 
 # สำหรับระบบกันสแปม
 user_messages = defaultdict(list)
@@ -82,7 +82,7 @@ async def on_message(message):
             print(f"Error Banning: {e}")
 
     # ตรวจสอบข้อยกเว้นสำหรับยศ Bubble B Diwaa หรือ Admin
-    is_whitelisted = any(role.name == "Bubble B Diwaa" for role in message.author.roles) or message.author.guild_permissions.administrator
+    is_whitelisted = any(role.name == "Member" for role in message.author.roles) or message.author.guild_permissions.administrator
 
     if not is_whitelisted:
         msg_content = message.content.lower().replace(" ", "").replace(".", "").replace("-", "") # กันพิมพ์คำหยาบหลบๆ 
@@ -207,7 +207,7 @@ async def send_test_debt_announcement(interaction: discord.Interaction):
 async def test_debt(ctx):
     try: await ctx.message.delete()
     except: pass
-    target_ch_id = 1484890268300738681
+    target_ch_id = 1485335264103501864
     channel = bot.get_channel(target_ch_id)
     if not channel: return await ctx.send(f"❌ หาห้อง ID {target_ch_id} ไม่เจอ!", delete_after=5)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -243,7 +243,7 @@ async def refresh_money_embed():
     for name, status in db["members_money"].items():
         if "จ่ายแล้ว" in status: p_list += f"🟢 `{name}`\n"; total += PRICE_PER_PERSON; paid_c += 1
         else: up_list += f"🔴 `{name}`\n"
-    embed = discord.Embed(title="🏢 BB GANG FINANCIAL", color=0x2b2d31)
+    embed = discord.Embed(title="🏢 24 GANG FINANCIAL", color=0x2b2d31)
     embed.add_field(name="✅ จ่ายแล้ว", value=p_list or "➖", inline=True);
     embed.add_field(name="❌ ค้างจ่าย", value=up_list or "➖", inline=True)
     # เพิ่มข้อมูลเกราะในสรุป
@@ -582,7 +582,7 @@ async def set_log_room(ctx):
 # Bot Start
 @bot.event
 async def on_ready():
-    print(f'✅ BB System Online!');
+    print(f'✅ 24 System Online!');
     if not auto_announce.is_running(): auto_announce.start()
     if not midnight_debt_announcer.is_running(): midnight_debt_announcer.start() 
     bot.add_view(AnnounceView()); bot.add_view(TicketView()); bot.add_view(CloseTicketView()); bot.add_view(MoneyTicketView()); bot.add_view(WheelActionView([], "ไม่ระบุ"))
