@@ -207,7 +207,7 @@ async def send_test_debt_announcement(interaction: discord.Interaction):
 async def test_debt(ctx):
     try: await ctx.message.delete()
     except: pass
-    target_ch_id = 1469694786830078166 
+    target_ch_id = 1484890268300738681
     channel = bot.get_channel(target_ch_id)
     if not channel: return await ctx.send(f"❌ หาห้อง ID {target_ch_id} ไม่เจอ!", delete_after=5)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
