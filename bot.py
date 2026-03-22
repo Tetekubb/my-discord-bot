@@ -255,7 +255,7 @@ async def refresh_money_embed():
 async def refresh_profile_embed():
     if not (channel := bot.get_channel(db.get("profile_ch_id"))): return
     txt = "".join([f"👤 **ชื่อ:** `{n}` | **อายุ:** `{a}` ปี\n" for n, a in db["profiles"].items()])
-    embed = discord.Embed(title="📋 รายชื่อสมาชิกแก๊งค์ BB", description=txt or "➖ ไม่มีข้อมูล", color=0x3498db)
+    embed = discord.Embed(title="📋 รายชื่อสมาชิกแก๊งค์ 24", description=txt or "➖ ไม่มีข้อมูล", color=0x3498db)
     embed.set_image(url=BANNER_URL)
     try: msg = await channel.fetch_message(db["profile_msg_id"]); await msg.edit(embed=embed)
     except: new_msg = await channel.send(embed=embed); db["profile_msg_id"] = new_msg.id; save_db(db)
@@ -429,7 +429,7 @@ class TicketView(ui.View):
 async def auto_announce():
     now = datetime.now(); now_h_m = now.strftime("%H:%M")
     if not (ch_id := db.get("auto_ann_ch_id")) or not (channel := bot.get_channel(ch_id)): return
-    target_role = discord.utils.get(channel.guild.roles, name="Bubble B Diwaa")
+    target_role = discord.utils.get(channel.guild.roles, name="Member")
     tag = target_role.mention if target_role else "@everyone"
     reset_times = [0, 6, 12, 18]; check_hour = (now.hour + 1) % 24
     if check_hour in reset_times and now.minute == 55:
@@ -489,7 +489,7 @@ async def ticket_setup(ctx, cat_id: int = None):
     except: pass
     if cat_id: db["ticket_category_id"] = cat_id; save_db(db)
     form_text = """**กรุณากรอกข้อมูลสมัคร:**\n• ชื่อ IC/OC :\n• อายุ IC/OC :\n• เพศ :\n• Username Roblox :\n• มีอาวุธอะไรบ้าง :\n• เหตุผลที่อยากเข้าแก๊ง :\n• มีไฟในการเล่นมั้ย :\n• เคยอยู่แก๊งค์มาก่อนมั้ย :\n• รับแรงกดดันได้มั้ย :\n• มีหัวผู้เล่นใหม่มั้ย :\n• เคยอยู่หน่วยงานมาก่อนมั้ย :\n• เล่นใน MB หรือ PC :"""
-    await ctx.send(embed=discord.Embed(title="📝 สมัครเข้าแก๊งค์ BB", description=form_text, color=0x3498db).set_image(url=BANNER_URL), view=TicketView())
+    await ctx.send(embed=discord.Embed(title="📝 สมัครเข้าแก๊งค์ 24", description=form_text, color=0x3498db).set_image(url=BANNER_URL), view=TicketView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
