@@ -421,7 +421,7 @@ class TicketView(ui.View):
 • มีหัวผู้เล่นใหม่มั้ย :
 • เคยอยู่หน่วยงานมาก่อนมั้ย :
 • เล่นใน MB หรือ PC :"""
-        await ticket_ch.send(embed=discord.Embed(title="🎫 BB Ticket Support", description=f"สวัสดีคุณ {interaction.user.mention}\n{form_text}", color=0x2ecc71).set_image(url=BANNER_URL), view=CloseTicketView())
+        await ticket_ch.send(embed=discord.Embed(title="🎫 24 Ticket Support", description=f"สวัสดีคุณ {interaction.user.mention}\n{form_text}", color=0x2ecc71).set_image(url=BANNER_URL), view=CloseTicketView())
         await interaction.response.send_message(f"✅ เปิดแล้วที่ {ticket_ch.mention}", ephemeral=True)
 
 # Task Loop ประกาศกิจกรรมอัตโนมัติ
