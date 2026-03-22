@@ -589,4 +589,4 @@ async def on_ready():
     for m in ['land', 'airdrop', 'story', 'leave']:
         bot.add_view(ActivitySignupView(m)); bot.add_view(AdminClearView(m))
 
-bot.run('DISCORD_TOKEN')
+bot.run(os.getenv('TOKEN'))
