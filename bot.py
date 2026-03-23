@@ -12,14 +12,15 @@ from collections import defaultdict
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True 
-intents.voice_states = True # เพิ่มสำหรับระบบ Log Voice
+intents.voice_states = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 DB_FILE = "bb_database.json"
 PRICE_PER_PERSON = 400000 
-ARMOR_COUNT = 5 # เพิ่มจำนวนเกราะ
+ARMOR_COUNT = 5
 BANNER_URL = "https://img2.pic.in.th/pic/rainbow-color-1.gif"
-WHEEL_GIF = "https://i.gifer.com/Vp3R.gif" 
+WHEEL_GIF = "https://i.gifer.com/Vp3R.gif"
+TIKTOK_CHANNEL_ID = 1466125220434809166
 
 # รายชื่อคำหยาบ (รวมคำหลบ) 
 BANNED_WORDS = ["ควย", "เย็ด", "หี", "แตด", "มึง", "กู", "เหี้ย", "สัส", "ค.ว.ย", "เ-ย", "ส.ัส", "ตอแหล", "แหล", "สก๊อย", "ส้นตีน", "ควาย", "กุ", "เมิง", "ประสาท", "เงี่ยน", "จู๋", "เขมร", "ลาบ", "ลาว", "กระจอก", "กาก", "ควE"] 
@@ -34,6 +35,8 @@ def load_db():
                 data = json.load(f)
                 default = {
                     "money_msg_id": None, "money_ch_id": None, "members_money": {},
+                    "vault_msg_id": None, "vault_ch_id": None,
+                    "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0},
                     "profile_msg_id": None, "profile_ch_id": None, "profiles": {},
                     "auto_ann_ch_id": None, "ticket_category_id": None,
                     "land_members": [], "airdrop_members": [], "story_members": [], "leave_airdrop": [],
@@ -42,12 +45,17 @@ def load_db():
                     "story_list_id": None, "story_ch_id": None,
                     "leave_list_id": None, "leave_ch_id": None,
                     "link_strikes": {},
-                    "log_ch_id": None # เพิ่มห้อง Log
+                    "log_ch_id": None
                 }
                 default.update(data)
                 return default
         except: pass
-    return {"members_money": {}, "profiles": {}, "land_members": [], "airdrop_members": [], "story_members": [], "leave_airdrop": [], "link_strikes": {}, "log_ch_id": None}
+    return {
+        "members_money": {}, "profiles": {},
+        "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0},
+        "land_members": [], "airdrop_members": [], "story_members": [], "leave_airdrop": [],
+        "link_strikes": {}, "log_ch_id": None
+    }
 
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
@@ -55,7 +63,7 @@ def save_db(data):
 
 db = load_db()
 
-# ฟังก์ชันส่ง Log การลงโทษ (เพิ่มเติม)
+# ฟังก์ชันส่ง Log การลงโทษ
 async def send_punish_log(member, action, reason):
     log_ch = bot.get_channel(db.get("log_ch_id"))
     if log_ch:
@@ -81,11 +89,11 @@ async def on_message(message):
         except Exception as e:
             print(f"Error Banning: {e}")
 
-    # ตรวจสอบข้อยกเว้นสำหรับยศ Bubble B Diwaa หรือ Admin
+    # ตรวจสอบข้อยกเว้นสำหรับยศ Member หรือ Admin
     is_whitelisted = any(role.name == "Member" for role in message.author.roles) or message.author.guild_permissions.administrator
 
     if not is_whitelisted:
-        msg_content = message.content.lower().replace(" ", "").replace(".", "").replace("-", "") # กันพิมพ์คำหยาบหลบๆ 
+        msg_content = message.content.lower().replace(" ", "").replace(".", "").replace("-", "")
         
         # 🚫 กันสแปม: 5 ข้อความใน 5 วินาที
         now = datetime.now()
@@ -119,34 +127,38 @@ async def on_message(message):
             except Exception as e:
                 print(f"Error Badword Timeout: {e}")
 
-        # 🚫 ตรวจสอบลิงก์
+        # 🚫 ตรวจสอบลิงก์ (ยกเว้น TikTok ในห้องที่กำหนด)
         if "http" in msg_content or "discord.gg/" in msg_content:
-            try: await message.delete()
-            except: pass
-            u_id = str(message.author.id)
-            db["link_strikes"][u_id] = db["link_strikes"].get(u_id, 0) + 1
-            save_db(db)
-            if db["link_strikes"][u_id] >= 2:
-                try:
-                    until_link = discord.utils.utcnow() + timedelta(days=1)
-                    await message.author.timeout(until_link, reason="แปะลิงก์ซ้ำ (ครบ 2 ครั้ง)")
-                    await message.channel.send(f"🚫 {message.author.mention} ถูกพักการใช้งาน 1 วันเนื่องจากแปะลิงก์เกินกำหนด!")
-                    await send_punish_log(message.author, "TIMEOUT (1 วัน)", "แปะลิงก์ซ้ำครบ 2 ครั้ง")
-                    db["link_strikes"][u_id] = 0 
-                    save_db(db)
-                except Exception as e: print(f"Error timeout: {e}")
-            else:
-                await message.channel.send(f"⚠️ {message.author.mention} ห้ามแปะลิงก์ในที่นี้!")
-                await send_punish_log(message.author, "WARNING (เตือน)", "พยายามแปะลิงก์ครั้งที่ 1")
+            allow_link = (message.channel.id == TIKTOK_CHANNEL_ID and "vt.tiktok.com" in msg_content)
+            if not allow_link:
+                try: await message.delete()
+                except: pass
+                u_id = str(message.author.id)
+                db["link_strikes"][u_id] = db["link_strikes"].get(u_id, 0) + 1
+                save_db(db)
+                if db["link_strikes"][u_id] >= 2:
+                    try:
+                        until_link = discord.utils.utcnow() + timedelta(days=1)
+                        await message.author.timeout(until_link, reason="แปะลิงก์ซ้ำ (ครบ 2 ครั้ง)")
+                        await message.channel.send(f"🚫 {message.author.mention} ถูกพักการใช้งาน 1 วันเนื่องจากแปะลิงก์เกินกำหนด!")
+                        await send_punish_log(message.author, "TIMEOUT (1 วัน)", "แปะลิงก์ซ้ำครบ 2 ครั้ง")
+                        db["link_strikes"][u_id] = 0 
+                        save_db(db)
+                    except Exception as e: print(f"Error timeout: {e}")
+                else:
+                    await message.channel.send(f"⚠️ {message.author.mention} ห้ามแปะลิงก์ในที่นี้!")
+                    await send_punish_log(message.author, "WARNING (เตือน)", "พยายามแปะลิงก์ครั้งที่ 1")
+                return
                 
     await bot.process_commands(message)
 
 # --- 3. ระบบ Log (ลบข้อความ & Voice) ---
 
-# แจ้งเตือนคนลบข้อความ
 @bot.event
 async def on_message_delete(message):
     if message.author == bot.user: return
+    msg_check = message.content.lower().replace(" ", "").replace(".", "")
+    if any(word in msg_check for word in BANNED_WORDS): return
     log_ch = bot.get_channel(db.get("log_ch_id"))
     if log_ch:
         embed = discord.Embed(title="🗑️ ข้อความถูกลบ", color=0xffa500, timestamp=datetime.now())
@@ -155,25 +167,94 @@ async def on_message_delete(message):
         embed.add_field(name="เนื้อหาที่ถูกลบ", value=f"```\n{message.content or 'ไม่มีเนื้อหา (อาจเป็นรูปภาพหรือไฟล์)'}\n```", inline=False)
         await log_ch.send(embed=embed)
 
-# แจ้งเตือนคนเข้า-ออกห้องเสียง
 @bot.event
 async def on_voice_state_update(member, before, after):
     log_ch = bot.get_channel(db.get("log_ch_id"))
     if not log_ch: return
-
     if before.channel is None and after.channel is not None:
-        # เข้าห้อง
         await log_ch.send(f"🔊 **{member.display_name}** เข้าห้องเสียง: `{after.channel.name}`")
     elif before.channel is not None and after.channel is None:
-        # ออกห้อง
         await log_ch.send(f"🔇 **{member.display_name}** ออกจากห้องเสียง: `{before.channel.name}`")
     elif before.channel is not None and after.channel is not None and before.channel != after.channel:
-        # ย้ายห้อง
         await log_ch.send(f"🔄 **{member.display_name}** ย้ายห้อง: `{before.channel.name}` ➡️ `{after.channel.name}`")
 
-# --- โค้ดส่วนเดิมทั้งหมด (ปรับปรุงการเงิน) ---
+# --- 4. ระบบการเงิน & คลัง (Vault) ---
 
-# ระบบแจ้งเตือนค้างจ่าย
+async def refresh_money_embed():
+    if not (channel := bot.get_channel(db.get("money_ch_id"))): return
+    total, paid_c, p_list, up_list = 0, 0, "", ""
+    for name, status in db["members_money"].items():
+        if "จ่ายแล้ว" in status: p_list += f"🟢 `{name}`\n"; total += PRICE_PER_PERSON; paid_c += 1
+        else: up_list += f"🔴 `{name}`\n"
+    embed = discord.Embed(title="🏢 24 GANG FINANCIAL", color=0x2b2d31)
+    embed.add_field(name="✅ จ่ายแล้ว", value=p_list or "➖", inline=True)
+    embed.add_field(name="❌ ค้างจ่าย", value=up_list or "➖", inline=True)
+    embed.add_field(name="📊 สรุปของแก๊งค์", value=f"```fix\n💰 เงินตอนนี้: {total:,} | ✅ {paid_c} | ❌ {len(db['members_money'])-paid_c}\n🛡️ เกราะตอนนี้: {paid_c * ARMOR_COUNT} ตัว```", inline=False)
+    embed.set_image(url=BANNER_URL)
+    view = MoneyTicketView()
+    try: msg = await channel.fetch_message(db["money_msg_id"]); await msg.edit(embed=embed, view=view)
+    except: new_msg = await channel.send(embed=embed, view=view); db["money_msg_id"] = new_msg.id; save_db(db)
+
+async def refresh_vault_embed():
+    ch = bot.get_channel(db.get("vault_ch_id"))
+    if not ch: return
+    w = db["warehouse"]
+    embed = discord.Embed(title="🏦 24 GANG VAULT", color=0xf1c40f)
+    embed.add_field(name="💰 เงินปัจจุบัน", value=f"```fix\n$ {w['total_money']:,} บาท\n```", inline=True)
+    embed.add_field(name="🛡️ เกราะปัจจุบัน", value=f"```fix\n{w['total_armor']:,} ตัว\n```", inline=True)
+    embed.add_field(name="🔫 กระสุนปัจจุบัน", value=f"```fix\n{w.get('total_ammo', 0):,} นัด\n```", inline=True)
+    embed.set_image(url=BANNER_URL)
+    try:
+        msg = await ch.fetch_message(db["vault_msg_id"]); await msg.edit(embed=embed)
+    except:
+        new_msg = await ch.send(embed=embed); db["vault_msg_id"] = new_msg.id; save_db(db)
+
+# ดึงยอดเงิน+เกราะของคนที่จ่ายแล้วเข้าคลัง แล้วรีเซ็ตทุกคนเป็นค้างจ่าย
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def deposit(ctx):
+    try: await ctx.message.delete()
+    except: pass
+    paid_names = [n for n, s in db["members_money"].items() if "จ่ายแล้ว" in s]
+    if not paid_names: return await ctx.send("❌ ไม่มีใครจ่ายเลยดึงยอดไม่ได้", delete_after=5)
+    db["warehouse"]["total_money"] += (len(paid_names) * PRICE_PER_PERSON)
+    db["warehouse"]["total_armor"] += (len(paid_names) * ARMOR_COUNT)
+    for name in db["members_money"]: db["members_money"][name] = "🔴 ค้างจ่าย"
+    save_db(db)
+    await refresh_money_embed()
+    await refresh_vault_embed()
+    await ctx.send(f"📥 ดึงยอดเข้าคลังแล้ว | เงิน +{len(paid_names)*PRICE_PER_PERSON:,} | เกราะ +{len(paid_names)*ARMOR_COUNT} ตัว", delete_after=5)
+
+# เพิ่มของเข้าคลัง: !add [money/armor/ammo] [จำนวน]
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def add(ctx, type: str, amt: int):
+    try: await ctx.message.delete()
+    except: pass
+    if type in ["money", "armor", "ammo"]:
+        db["warehouse"][f"total_{type}"] += amt
+        save_db(db)
+        await refresh_vault_embed()
+        await ctx.send(f"✅ เพิ่ม {type} +{amt:,} เข้าคลังแล้ว", delete_after=5)
+    else:
+        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`", delete_after=5)
+
+# ลดของออกจากคลัง: !sub [money/armor/ammo] [จำนวน]
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def sub(ctx, type: str, amt: int):
+    try: await ctx.message.delete()
+    except: pass
+    if type in ["money", "armor", "ammo"]:
+        db["warehouse"][f"total_{type}"] -= amt
+        save_db(db)
+        await refresh_vault_embed()
+        await ctx.send(f"✅ หัก {type} -{amt:,} จากคลังแล้ว", delete_after=5)
+    else:
+        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`", delete_after=5)
+
+# --- 5. ระบบแจ้งเตือนค้างจ่าย ---
+
 @tasks.loop(seconds=60)
 async def midnight_debt_announcer():
     now = datetime.now()
@@ -188,7 +269,6 @@ async def midnight_debt_announcer():
             embed.set_image(url=BANNER_URL)
             await channel.send(embed=embed)
 
-# ฟังก์ชันปุ่มเทส & คำสั่งเทส
 async def send_test_debt_announcement(interaction: discord.Interaction):
     target_ch_id = 1469694786830078166 
     channel = bot.get_channel(target_ch_id)
@@ -219,7 +299,8 @@ async def test_debt(ctx):
         await ctx.send("✅ ส่งประกาศทดสอบไปที่ห้องแจ้งเตือนแล้ว!", delete_after=5)
     else: await ctx.send("✅ เอาดีจ่ายตรบหมดแล้วหรอเนี่ยย!", delete_after=5)
 
-# UI Classes ทั้งหมด
+# --- 6. UI Classes ---
+
 class MoneyTicketView(ui.View):
     def __init__(self): super().__init__(timeout=None)
     @ui.button(label='💳 แจ้งจ่ายเงิน', style=discord.ButtonStyle.primary, custom_id='btn_pay_slip_ticket')
@@ -230,27 +311,11 @@ class MoneyTicketView(ui.View):
         overwrites = {guild.default_role: discord.PermissionOverwrite(read_messages=False), interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True), guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)}
         if accountant_role: overwrites[accountant_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         ticket_ch = await guild.create_text_channel(name=f"pay-{interaction.user.name}", category=category, overwrites=overwrites)
-        # แก้ไขยอดในข้อความ Ticket
         embed = discord.Embed(title="💳 บริการแจ้งจ่ายเงิน", description=f"สวัสดีคุณ {interaction.user.mention}\nรอฝ่ายบัญชีตอบเพื่อชำระเงิน\n\n**ยอดที่ต้องชำระ:** `{PRICE_PER_PERSON:,}` + **เกราะ {ARMOR_COUNT} ตัว**\n**รายละเอียด:** ถ้าฝ่ายบัญชีไม่ตอบแท็กเรียกได้เลย", color=0x3498db)
         embed.set_image(url=BANNER_URL)
         mention_text = accountant_role.mention if accountant_role else ""
         await ticket_ch.send(content=mention_text, embed=embed, view=CloseTicketView())
         await interaction.response.send_message(f"✅ สร้างช่องแจ้งจ่ายเงินแล้วที่ {ticket_ch.mention}", ephemeral=True)
-
-async def refresh_money_embed():
-    if not (channel := bot.get_channel(db.get("money_ch_id"))): return
-    total, paid_c, p_list, up_list = 0, 0, "", ""
-    for name, status in db["members_money"].items():
-        if "จ่ายแล้ว" in status: p_list += f"🟢 `{name}`\n"; total += PRICE_PER_PERSON; paid_c += 1
-        else: up_list += f"🔴 `{name}`\n"
-    embed = discord.Embed(title="🏢 24 GANG FINANCIAL", color=0x2b2d31)
-    embed.add_field(name="✅ จ่ายแล้ว", value=p_list or "➖", inline=True);
-    embed.add_field(name="❌ ค้างจ่าย", value=up_list or "➖", inline=True)
-    # เพิ่มข้อมูลเกราะในสรุป
-    embed.add_field(name="📊 สรุปของแก๊งค์", value=f"```fix\n💰 เงินตอนนี้: {total:,} | ✅ {paid_c} | ❌ {len(db['members_money'])-paid_c}\n🛡️ เกราะตอนนี้: {paid_c * ARMOR_COUNT} ตัว```", inline=False)
-    embed.set_image(url=BANNER_URL); view = MoneyTicketView()
-    try: msg = await channel.fetch_message(db["money_msg_id"]); await msg.edit(embed=embed, view=view)
-    except: new_msg = await channel.send(embed=embed, view=view); db["money_msg_id"] = new_msg.id; save_db(db)
 
 async def refresh_profile_embed():
     if not (channel := bot.get_channel(db.get("profile_ch_id"))): return
@@ -291,7 +356,7 @@ class NameInputModal(ui.Modal):
         user_name = self.name.value; list_key = f"{self.mode}_members"
         if user_name not in db[list_key]:
             db[list_key].append(user_name); save_db(db); await refresh_specific_list(self.mode)
-            await interaction.response.send_message(f"✅ บันทึกชื่อ `{user_name}` ลงlogเรียบร้อย", ephemeral=True)
+            await interaction.response.send_message(f"✅ บันทึกชื่อ `{user_name}` ลง log เรียบร้อย", ephemeral=True)
         else: await interaction.response.send_message(f"❌ ชื่อนี้มีอยู่แล้วในรายการ", ephemeral=True)
 
 class ActivitySignupView(ui.View):
@@ -367,7 +432,7 @@ class VoteSetupModal(ui.Modal, title='📊 ตั้งค่าการโห�
     options = ui.TextInput(label='ตัวเลือกการโหวต (แยกบรรทัดใหม่)', style=discord.TextStyle.paragraph, placeholder='ตัวเลือก 1\nตัวเลือก 2...', required=True)
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            target_channel = bot.get_channel(int(self.channel_id.value)); list_opts = [o.strip() for o in self.options.value.split('\n') if o.strip()][:5] 
+            target_channel = bot.get_channel(int(self.channel_id.value)); list_opts = [o.strip() for o in self.options.value.split('\n') if o.strip()][:5]
             if not target_channel or not list_opts: raise Exception()
             view = VoteView(self.vote_title.value, list_opts); await target_channel.send(embed=view.create_embed(), view=view)
             await interaction.response.send_message(f"✅ ส่งระบบโหวต **{self.vote_title.value}** แล้ว!", ephemeral=True)
@@ -424,7 +489,8 @@ class TicketView(ui.View):
         await ticket_ch.send(embed=discord.Embed(title="🎫 24 Ticket Support", description=f"สวัสดีคุณ {interaction.user.mention}\n{form_text}", color=0x2ecc71).set_image(url=BANNER_URL), view=CloseTicketView())
         await interaction.response.send_message(f"✅ เปิดแล้วที่ {ticket_ch.mention}", ephemeral=True)
 
-# Task Loop ประกาศกิจกรรมอัตโนมัติ
+# --- 7. Task Loop ประกาศกิจกรรมอัตโนมัติ ---
+
 @tasks.loop(seconds=60)
 async def auto_announce():
     now = datetime.now(); now_h_m = now.strftime("%H:%M")
@@ -445,7 +511,8 @@ async def auto_announce():
         elif 1 <= diff <= 3: await channel.send(content=tag, embed=discord.Embed(title="🚨 ใกล้เริ่มแล้ว!", description=f"**{name}** ในอีก {diff} นาทีเท่านั้น!", color=0xe67e22).set_image(url=BANNER_URL))
     if now_h_m in activities: await channel.send(content=tag, embed=discord.Embed(title="⏰ เริ่มแล้ว!", description=f"**{activities[now_h_m]}** มาเลยๆ!", color=0xff4500).set_image(url=BANNER_URL))
 
-# Admin Commands เดิม
+# --- 8. Admin Commands ---
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_leave_btn(ctx):
@@ -474,6 +541,7 @@ async def delpay(ctx, name: str):
     try: await ctx.message.delete()
     except: pass
     if name in db["members_money"]: del db["members_money"][name]; save_db(db); await refresh_money_embed(); await ctx.send(f"🗑️ ลบชื่อ `{name}` ออกจากตารางการเงินแล้ว", delete_after=5)
+    else: await ctx.send(f"❌ ไม่พบชื่อ `{name}` ในรายการ", delete_after=5)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -550,10 +618,15 @@ async def pay(ctx, name: str, *, status: str):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup(ctx):
+async def setup(ctx, type: str = "finance"):
     try: await ctx.message.delete()
     except: pass
-    db["money_ch_id"] = ctx.channel.id; db["money_msg_id"] = None; save_db(db); await refresh_money_embed()
+    if type == "finance":
+        db["money_ch_id"] = ctx.channel.id; db["money_msg_id"] = None; save_db(db); await refresh_money_embed()
+    elif type == "vault":
+        db["vault_ch_id"] = ctx.channel.id; db["vault_msg_id"] = None; save_db(db); await refresh_vault_embed()
+    else:
+        await ctx.send("❌ ใช้ `!setup finance` หรือ `!setup vault`", delete_after=5)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -569,7 +642,6 @@ async def set_auto_room(ctx):
     except: pass
     db["auto_ann_ch_id"] = ctx.channel.id; save_db(db); await ctx.send("✅ ตั้งห้องแล้ว", delete_after=5)
 
-# --- เพิ่มคำสั่งสำหรับห้อง Log ใหม่ ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def set_log_room(ctx):
@@ -577,15 +649,16 @@ async def set_log_room(ctx):
     except: pass
     db["log_ch_id"] = ctx.channel.id
     save_db(db)
-    await ctx.send(f"✅ ตั้งห้อง {ctx.channel.mention} เป็นห้องแจ้งเตือน Log (ลบข้อความ/Voice/ลงโทษ) เรียบร้อย!", delete_after=5)
+    await ctx.send(f"✅ ตั้งห้อง {ctx.channel.mention} เป็นห้องแจ้งเตือน Log เรียบร้อย!", delete_after=5)
 
-# Bot Start
+# --- 9. Bot Start ---
 @bot.event
 async def on_ready():
-    print(f'✅ 24 System Online!');
+    print(f'✅ 24 System Online!')
     if not auto_announce.is_running(): auto_announce.start()
-    if not midnight_debt_announcer.is_running(): midnight_debt_announcer.start() 
-    bot.add_view(AnnounceView()); bot.add_view(TicketView()); bot.add_view(CloseTicketView()); bot.add_view(MoneyTicketView()); bot.add_view(WheelActionView([], "ไม่ระบุ"))
+    if not midnight_debt_announcer.is_running(): midnight_debt_announcer.start()
+    bot.add_view(AnnounceView()); bot.add_view(TicketView()); bot.add_view(CloseTicketView())
+    bot.add_view(MoneyTicketView()); bot.add_view(WheelActionView([], "ไม่ระบุ"))
     for m in ['land', 'airdrop', 'story', 'leave']:
         bot.add_view(ActivitySignupView(m)); bot.add_view(AdminClearView(m))
 
