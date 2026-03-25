@@ -90,7 +90,7 @@ async def on_message(message):
             print(f"Error Banning: {e}")
 
     # ตรวจสอบข้อยกเว้นสำหรับยศ Member หรือ Admin
-    is_whitelisted = any(role.name == "Member" for role in message.author.roles) or message.author.guild_permissions.administrator
+    is_whitelisted = any(role.name == "ִ ࣪ ˖ ࣪membergang24 ! ᰔ ִ" for role in message.author.roles) or message.author.guild_permissions.administrator
 
     if not is_whitelisted:
         msg_content = message.content.lower().replace(" ", "").replace(".", "").replace("-", "")
@@ -259,7 +259,7 @@ async def sub(ctx, type: str, amt: int):
 async def midnight_debt_announcer():
     now = datetime.now()
     if now.hour == 0 and now.minute == 0:
-        target_ch_id = 1469694786830078166 
+        target_ch_id = 1486304886307033099 
         channel = bot.get_channel(target_ch_id)
         if not channel: return
         unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -270,7 +270,7 @@ async def midnight_debt_announcer():
             await channel.send(embed=embed)
 
 async def send_test_debt_announcement(interaction: discord.Interaction):
-    target_ch_id = 1469694786830078166 
+    target_ch_id = 1486304886307033099 
     channel = bot.get_channel(target_ch_id)
     if not channel: return await interaction.response.send_message("❌ หาห้องแจ้งเตือนไม่เจอ!", ephemeral=True)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -287,7 +287,7 @@ async def send_test_debt_announcement(interaction: discord.Interaction):
 async def test_debt(ctx):
     try: await ctx.message.delete()
     except: pass
-    target_ch_id = 1485335264103501864
+    target_ch_id = 1486304886307033099
     channel = bot.get_channel(target_ch_id)
     if not channel: return await ctx.send(f"❌ หาห้อง ID {target_ch_id} ไม่เจอ!", delete_after=5)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -307,7 +307,7 @@ class MoneyTicketView(ui.View):
     async def pay_ticket(self, interaction: discord.Interaction, button: ui.Button):
         guild = interaction.guild; cat_id = db.get("ticket_category_id")
         category = discord.utils.get(guild.categories, id=cat_id) if cat_id else None
-        accountant_role = discord.utils.get(guild.roles, name="ฝ่ายบัญชี")
+        accountant_role = discord.utils.get(guild.roles, name="꒰˚𝑻𝒉𝒆 𝒃𝒐𝒔𝒔!")
         overwrites = {guild.default_role: discord.PermissionOverwrite(read_messages=False), interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True), guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)}
         if accountant_role: overwrites[accountant_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         ticket_ch = await guild.create_text_channel(name=f"pay-{interaction.user.name}", category=category, overwrites=overwrites)
