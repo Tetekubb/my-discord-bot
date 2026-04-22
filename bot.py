@@ -36,7 +36,7 @@ def load_db():
                 default = {
                     "money_msg_id": None, "money_ch_id": None, "members_money": {},
                     "vault_msg_id": None, "vault_ch_id": None,
-                    "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0},
+                    "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0, "total_cpr": 0, "total_medicine": 0},
                     "profile_msg_id": None, "profile_ch_id": None, "profiles": {},
                     "auto_ann_ch_id": None, "ticket_category_id": None,
                     "land_members": [], "airdrop_members": [], "story_members": [], "leave_airdrop": [],
@@ -52,7 +52,7 @@ def load_db():
         except: pass
     return {
         "members_money": {}, "profiles": {},
-        "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0},
+        "warehouse": {"total_money": 0, "total_armor": 0, "total_ammo": 0, "total_cpr": 0, "total_medicine": 0},
         "land_members": [], "airdrop_members": [], "story_members": [], "leave_airdrop": [],
         "link_strikes": {}, "log_ch_id": None
     }
@@ -90,7 +90,7 @@ async def on_message(message):
             print(f"Error Banning: {e}")
 
     # ตรวจสอบข้อยกเว้นสำหรับยศ Member หรือ Admin
-    is_whitelisted = any(role.name == "ִ ࣪ ˖ ࣪membergang24 ! ᰔ ִ" for role in message.author.roles) or message.author.guild_permissions.administrator
+    is_whitelisted = any(role.name == "Member" for role in message.author.roles) or message.author.guild_permissions.administrator
 
     if not is_whitelisted:
         msg_content = message.content.lower().replace(" ", "").replace(".", "").replace("-", "")
@@ -203,13 +203,14 @@ async def refresh_vault_embed():
     embed.add_field(name="💰 เงินปัจจุบัน", value=f"```fix\n$ {w['total_money']:,} บาท\n```", inline=True)
     embed.add_field(name="🛡️ เกราะปัจจุบัน", value=f"```fix\n{w['total_armor']:,} ตัว\n```", inline=True)
     embed.add_field(name="🔫 กระสุนปัจจุบัน", value=f"```fix\n{w.get('total_ammo', 0):,} นัด\n```", inline=True)
+    embed.add_field(name="🩺 CPR ปัจจุบัน", value=f"```fix\n{w.get('total_cpr', 0):,} อัน\n```", inline=True)
+    embed.add_field(name="💊 ผ้าพันแผลปัจจุบัน", value=f"```fix\n{w.get('total_medicine', 0):,} อัน\n```", inline=True)
     embed.set_image(url=BANNER_URL)
     try:
         msg = await ch.fetch_message(db["vault_msg_id"]); await msg.edit(embed=embed)
     except:
         new_msg = await ch.send(embed=embed); db["vault_msg_id"] = new_msg.id; save_db(db)
 
-# ดึงยอดเงิน+เกราะของคนที่จ่ายแล้วเข้าคลัง แล้วรีเซ็ตทุกคนเป็นค้างจ่าย
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def deposit(ctx):
@@ -217,41 +218,39 @@ async def deposit(ctx):
     except: pass
     paid_names = [n for n, s in db["members_money"].items() if "จ่ายแล้ว" in s]
     if not paid_names: return await ctx.send("❌ ไม่มีใครจ่ายเลยดึงยอดไม่ได้", delete_after=5)
-    db["warehouse"]["total_money"] += (len(paid_names) * PRICE_PER_PERSON)
-    db["warehouse"]["total_armor"] += (len(paid_names) * ARMOR_COUNT)
+    db["warehouse"]["total_money"] = db["warehouse"].get("total_money", 0) + (len(paid_names) * PRICE_PER_PERSON)
+    db["warehouse"]["total_armor"] = db["warehouse"].get("total_armor", 0) + (len(paid_names) * ARMOR_COUNT)
     for name in db["members_money"]: db["members_money"][name] = "🔴 ค้างจ่าย"
     save_db(db)
     await refresh_money_embed()
     await refresh_vault_embed()
     await ctx.send(f"📥 ดึงยอดเข้าคลังแล้ว | เงิน +{len(paid_names)*PRICE_PER_PERSON:,} | เกราะ +{len(paid_names)*ARMOR_COUNT} ตัว", delete_after=5)
 
-# เพิ่มของเข้าคลัง: !add [money/armor/ammo] [จำนวน]
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def add(ctx, type: str, amt: int):
     try: await ctx.message.delete()
     except: pass
-    if type in ["money", "armor", "ammo"]:
+    if type in ["money", "armor", "ammo", "cpr", "medicine"]:
         db["warehouse"][f"total_{type}"] += amt
         save_db(db)
         await refresh_vault_embed()
         await ctx.send(f"✅ เพิ่ม {type} +{amt:,} เข้าคลังแล้ว", delete_after=5)
     else:
-        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`", delete_after=5)
+        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`, `cpr`, `medicine`", delete_after=5)
 
-# ลดของออกจากคลัง: !sub [money/armor/ammo] [จำนวน]
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def sub(ctx, type: str, amt: int):
     try: await ctx.message.delete()
     except: pass
-    if type in ["money", "armor", "ammo"]:
+    if type in ["money", "armor", "ammo", "cpr", "medicine"]:
         db["warehouse"][f"total_{type}"] -= amt
         save_db(db)
         await refresh_vault_embed()
         await ctx.send(f"✅ หัก {type} -{amt:,} จากคลังแล้ว", delete_after=5)
     else:
-        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`", delete_after=5)
+        await ctx.send("❌ ประเภทไม่ถูกต้อง ใช้ได้: `money`, `armor`, `ammo`, `cpr`, `medicine`", delete_after=5)
 
 # --- 5. ระบบแจ้งเตือนค้างจ่าย ---
 
@@ -259,7 +258,7 @@ async def sub(ctx, type: str, amt: int):
 async def midnight_debt_announcer():
     now = datetime.now()
     if now.hour == 0 and now.minute == 0:
-        target_ch_id = 1486304886307033099 
+        target_ch_id = 1469694786830078166 
         channel = bot.get_channel(target_ch_id)
         if not channel: return
         unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -270,7 +269,7 @@ async def midnight_debt_announcer():
             await channel.send(embed=embed)
 
 async def send_test_debt_announcement(interaction: discord.Interaction):
-    target_ch_id = 1486304886307033099 
+    target_ch_id = 1469694786830078166 
     channel = bot.get_channel(target_ch_id)
     if not channel: return await interaction.response.send_message("❌ หาห้องแจ้งเตือนไม่เจอ!", ephemeral=True)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -287,7 +286,7 @@ async def send_test_debt_announcement(interaction: discord.Interaction):
 async def test_debt(ctx):
     try: await ctx.message.delete()
     except: pass
-    target_ch_id = 1486304886307033099
+    target_ch_id = 1485335264103501864
     channel = bot.get_channel(target_ch_id)
     if not channel: return await ctx.send(f"❌ หาห้อง ID {target_ch_id} ไม่เจอ!", delete_after=5)
     unpaid_list = [name for name, status in db["members_money"].items() if "จ่ายแล้ว" not in status]
@@ -307,7 +306,7 @@ class MoneyTicketView(ui.View):
     async def pay_ticket(self, interaction: discord.Interaction, button: ui.Button):
         guild = interaction.guild; cat_id = db.get("ticket_category_id")
         category = discord.utils.get(guild.categories, id=cat_id) if cat_id else None
-        accountant_role = discord.utils.get(guild.roles, name="꒰˚𝑻𝒉𝒆 𝒃𝒐𝒔𝒔!")
+        accountant_role = discord.utils.get(guild.roles, name="ฝ่ายบัญชี")
         overwrites = {guild.default_role: discord.PermissionOverwrite(read_messages=False), interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True), guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)}
         if accountant_role: overwrites[accountant_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         ticket_ch = await guild.create_text_channel(name=f"pay-{interaction.user.name}", category=category, overwrites=overwrites)
@@ -449,16 +448,203 @@ class AnnounceModal(ui.Modal, title='📢 สร้างประกาศใ�
             await target_channel.send(embed=embed); await interaction.response.send_message("✅ ส่งประกาศแล้ว!", ephemeral=True)
         except: await interaction.response.send_message("❌ Error!", ephemeral=True)
 
+# --- Modal สำหรับจัดการคลัง (เพิ่ม/ลด) ---
+
+class VaultItemModal(ui.Modal):
+    amount = ui.TextInput(label='จำนวน', placeholder='ระบุจำนวน...', required=True, max_length=12)
+    def __init__(self, item_key: str, item_label: str, action: str):
+        self.item_key = item_key
+        self.action = action
+        title_text = f"{'➕ เพิ่ม' if action == 'add' else '➖ ลด'} {item_label}"
+        super().__init__(title=title_text)
+    async def on_submit(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ เฉพาะ Admin เท่านั้น!", ephemeral=True)
+        try:
+            amt = int(self.amount.value.replace(",", ""))
+            if amt <= 0: raise ValueError()
+        except:
+            return await interaction.response.send_message("❌ กรุณาใส่ตัวเลขที่ถูกต้อง!", ephemeral=True)
+        key = f"total_{self.item_key}"
+        if self.action == "add":
+            db["warehouse"][key] = db["warehouse"].get(key, 0) + amt
+            msg = f"✅ เพิ่ม **{self.item_key}** +{amt:,} เข้าคลังแล้ว"
+        else:
+            db["warehouse"][key] = db["warehouse"].get(key, 0) - amt
+            msg = f"✅ หัก **{self.item_key}** -{amt:,} จากคลังแล้ว"
+        save_db(db)
+        await refresh_vault_embed()
+        await interaction.response.send_message(msg, ephemeral=True)
+
+class DepositModal(ui.Modal, title='💾 ดึงเงินเข้าหลังบ้าน'):
+    confirm = ui.TextInput(label='พิมพ์ "ยืนยัน" เพื่อดึงเงินเข้าหลังบ้าน', placeholder='ยืนยัน', required=True, max_length=10)
+    async def on_submit(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ เฉพาะ Admin เท่านั้น!", ephemeral=True)
+        if self.confirm.value.strip() != "ยืนยัน":
+            return await interaction.response.send_message("❌ ยกเลิก: พิมพ์ 'ยืนยัน' เท่านั้น", ephemeral=True)
+        paid_names = [n for n, s in db["members_money"].items() if "จ่ายแล้ว" in s]
+        if not paid_names:
+            return await interaction.response.send_message("❌ ไม่มีใครจ่ายเลย ดึงยอดไม่ได้", ephemeral=True)
+        db["warehouse"]["total_money"] = db["warehouse"].get("total_money", 0) + (len(paid_names) * PRICE_PER_PERSON)
+        db["warehouse"]["total_armor"] = db["warehouse"].get("total_armor", 0) + (len(paid_names) * ARMOR_COUNT)
+        for name in db["members_money"]: db["members_money"][name] = "🔴 ค้างจ่าย"
+        save_db(db)
+        await refresh_money_embed()
+        await refresh_vault_embed()
+        await interaction.response.send_message(
+            f"📥 ดึงยอดเข้าคลังแล้ว!\n💰 เงิน +{len(paid_names)*PRICE_PER_PERSON:,}\n🛡️ เกราะ +{len(paid_names)*ARMOR_COUNT} ตัว\n👤 จาก {len(paid_names)} คน",
+            ephemeral=True
+        )
+
+# ====================================================
+# ระบบสถานะจ่ายเงิน (ใหม่) - แยกออกมาเป็นหน้าต่างต่างหาก
+# ====================================================
+
+# Step 1: Modal ให้ใส่ชื่อ
+class PayStatusNameModal(ui.Modal, title='💳 สถานะจ่ายเงิน - ใส่ชื่อ'):
+    name = ui.TextInput(label='ชื่อสมาชิก', placeholder='พิมพ์ชื่อที่ต้องการแก้ไขสถานะ...', min_length=1)
+    async def on_submit(self, interaction: discord.Interaction):
+        member_name = self.name.value.strip()
+        # ถ้าชื่อยังไม่มีในระบบ ให้เพิ่มเข้าไปก่อนด้วยสถานะค้างจ่าย
+        if member_name not in db["members_money"]:
+            db["members_money"][member_name] = "🔴 ค้างจ่าย"
+            save_db(db)
+        current_status = db["members_money"].get(member_name, "🔴 ค้างจ่าย")
+        embed = discord.Embed(
+            title="💳 เลือกสถานะจ่ายเงิน",
+            description=f"**ชื่อ:** `{member_name}`\n**สถานะปัจจุบัน:** {current_status}\n\nกรุณาเลือกสถานะใหม่:",
+            color=0x3498db
+        )
+        embed.set_image(url=BANNER_URL)
+        await interaction.response.send_message(embed=embed, view=PayStatusSelectView(member_name), ephemeral=True)
+
+# Step 2: View ให้กดเลือกสถานะ
+class PayStatusSelectView(ui.View):
+    def __init__(self, member_name: str):
+        super().__init__(timeout=60)
+        self.member_name = member_name
+
+    @ui.button(label='✅ จ่ายแล้ว', style=discord.ButtonStyle.success, custom_id='pay_status_paid')
+    async def paid_btn(self, interaction: discord.Interaction, button: ui.Button):
+        db["members_money"][self.member_name] = "🟢 จ่ายแล้ว"
+        save_db(db)
+        await refresh_money_embed()
+        await interaction.response.edit_message(
+            content=f"✅ อัปเดตสถานะ `{self.member_name}` → **จ่ายแล้ว** เรียบร้อย!",
+            embed=None, view=None
+        )
+
+    @ui.button(label='❌ ค้างจ่าย', style=discord.ButtonStyle.danger, custom_id='pay_status_unpaid')
+    async def unpaid_btn(self, interaction: discord.Interaction, button: ui.Button):
+        db["members_money"][self.member_name] = "🔴 ค้างจ่าย"
+        save_db(db)
+        await refresh_money_embed()
+        await interaction.response.edit_message(
+            content=f"✅ อัปเดตสถานะ `{self.member_name}` → **ค้างจ่าย** เรียบร้อย!",
+            embed=None, view=None
+        )
+
+# Modal ลบชื่อสมาชิก
+class DeleteMemberModal(ui.Modal, title='🗑️ ลบชื่อสมาชิก'):
+    name = ui.TextInput(label='ชื่อสมาชิกที่ต้องการลบ', placeholder='พิมพ์ชื่อให้ตรงกับในตาราง...', min_length=1)
+    async def on_submit(self, interaction: discord.Interaction):
+        member_name = self.name.value.strip()
+        if member_name in db["members_money"]:
+            del db["members_money"][member_name]
+            save_db(db)
+            await refresh_money_embed()
+            await interaction.response.send_message(f"🗑️ ลบชื่อ `{member_name}` ออกจากตารางการเงินแล้ว", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ ไม่พบชื่อ `{member_name}` ในรายการ", ephemeral=True)
+
+# View หลักของ Pay Panel
+class PayPanelView(ui.View):
+    def __init__(self): super().__init__(timeout=None)
+
+    @ui.button(label='💳 สถานะจ่ายเงิน', style=discord.ButtonStyle.primary, custom_id='btn_pay_status_panel')
+    async def pay_status_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ เฉพาะ Admin เท่านั้น!", ephemeral=True)
+        await interaction.response.send_modal(PayStatusNameModal())
+
+    @ui.button(label='🗑️ ลบชื่อสมาชิก', style=discord.ButtonStyle.danger, custom_id='btn_delete_member_panel')
+    async def delete_member_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ เฉพาะ Admin เท่านั้น!", ephemeral=True)
+        await interaction.response.send_modal(DeleteMemberModal())
+
+# ====================================================
+
 class AnnounceView(ui.View):
     def __init__(self): super().__init__(timeout=None)
-    @ui.button(label='📢 สร้างประกาศ', style=discord.ButtonStyle.primary, custom_id='btn_ann')
+
+    @ui.button(label='📢 สร้างประกาศ', style=discord.ButtonStyle.primary, custom_id='btn_ann', row=0)
     async def ann_btn(self, interaction: discord.Interaction, button: ui.Button): await interaction.response.send_modal(AnnounceModal())
-    @ui.button(label='🎡 สุ่มวงล้อ', style=discord.ButtonStyle.success, custom_id='btn_wheel_spin')
+
+    @ui.button(label='🎡 สุ่มวงล้อ', style=discord.ButtonStyle.success, custom_id='btn_wheel_spin', row=0)
     async def wheel_btn(self, interaction: discord.Interaction, button: ui.Button): await interaction.response.send_modal(WheelSetupModal())
-    @ui.button(label='📊 สร้างโหวต', style=discord.ButtonStyle.secondary, custom_id='btn_vote_setup')
+
+    @ui.button(label='📊 สร้างโหวต', style=discord.ButtonStyle.secondary, custom_id='btn_vote_setup', row=0)
     async def vote_btn(self, interaction: discord.Interaction, button: ui.Button): await interaction.response.send_modal(VoteSetupModal())
-    @ui.button(label='🧪 เทสประกาศค้างจ่าย', style=discord.ButtonStyle.danger, custom_id='btn_test_debt_ann')
+
+    @ui.button(label='🧪 เทสแจ้งค้างจ่าย', style=discord.ButtonStyle.danger, custom_id='btn_test_debt_ann', row=0)
     async def test_debt_btn(self, interaction: discord.Interaction, button: ui.Button): await send_test_debt_announcement(interaction)
+
+    @ui.button(label='💾 เก็บเงินเข้าคลัง', style=discord.ButtonStyle.success, custom_id='btn_deposit', row=1)
+    async def deposit_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(DepositModal())
+
+    @ui.button(label='➕💰 เพิ่มเงิน', style=discord.ButtonStyle.secondary, custom_id='btn_add_money', row=1)
+    async def add_money_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("money", "เงิน", "add"))
+
+    @ui.button(label='➕🛡️ เพิ่มเกราะ', style=discord.ButtonStyle.secondary, custom_id='btn_add_armor', row=1)
+    async def add_armor_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("armor", "เกราะ", "add"))
+
+    @ui.button(label='➕🔫 เพิ่มกระสุน', style=discord.ButtonStyle.secondary, custom_id='btn_add_ammo', row=1)
+    async def add_ammo_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("ammo", "กระสุน", "add"))
+
+    @ui.button(label='➕🩺 เพิ่ม CPR', style=discord.ButtonStyle.secondary, custom_id='btn_add_cpr', row=2)
+    async def add_cpr_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("cpr", "CPR", "add"))
+
+    @ui.button(label='➕💊 เพิ่มผ้าพันแผล', style=discord.ButtonStyle.secondary, custom_id='btn_add_medicine', row=2)
+    async def add_medicine_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("medicine", "ยาชุบ", "add"))
+
+    @ui.button(label='➖💰 ลดเงิน', style=discord.ButtonStyle.danger, custom_id='btn_sub_money', row=2)
+    async def sub_money_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("money", "เงิน", "sub"))
+
+    @ui.button(label='➖🛡️ ลดเกราะ', style=discord.ButtonStyle.danger, custom_id='btn_sub_armor', row=2)
+    async def sub_armor_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("armor", "เกราะ", "sub"))
+
+    @ui.button(label='➖🔫 ลดกระสุน', style=discord.ButtonStyle.danger, custom_id='btn_sub_ammo', row=3)
+    async def sub_ammo_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("ammo", "กระสุน", "sub"))
+
+    @ui.button(label='➖🩺 ลด CPR', style=discord.ButtonStyle.danger, custom_id='btn_sub_cpr', row=3)
+    async def sub_cpr_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("cpr", "CPR", "sub"))
+
+    @ui.button(label='➖💊 ลดผ้าพันแผล', style=discord.ButtonStyle.danger, custom_id='btn_sub_medicine', row=3)
+    async def sub_medicine_btn(self, interaction: discord.Interaction, button: ui.Button):
+        if not interaction.user.guild_permissions.administrator: return await interaction.response.send_message("❌ เฉพาะ Admin!", ephemeral=True)
+        await interaction.response.send_modal(VaultItemModal("medicine", "ยาชุบ", "sub"))
 
 class CloseTicketView(ui.View):
     def __init__(self): super().__init__(timeout=None)
@@ -479,6 +665,7 @@ class TicketView(ui.View):
 • เพศ :
 • Username Roblox :
 • มีอาวุธอะไรบ้าง :
+• อาวุธบวกอะไร :
 • เหตุผลที่อยากเข้าแก๊ง :
 • มีไฟในการเล่นมั้ย :
 • เคยอยู่แก๊งค์มาก่อนมั้ย :
@@ -515,6 +702,23 @@ async def auto_announce():
 
 @bot.command()
 @commands.has_permissions(administrator=True)
+async def setup_pay_panel(ctx):
+    """ส่งหน้าต่างจัดการสถานะจ่ายเงิน (แยกจาก setup_all)"""
+    try: await ctx.message.delete()
+    except: pass
+    embed = discord.Embed(
+        title="💳 แผงจัดการสถานะการจ่ายเงิน",
+        description=(
+            "**💳 สถานะจ่ายเงิน** — ใส่ชื่อสมาชิก แล้วเลือก จ่ายแล้ว / ค้างจ่าย\n"
+            "**🗑️ ลบชื่อสมาชิก** — ลบชื่อออกจากตารางการเงิน (เช่น คนออกจากแก๊งค์)"
+        ),
+        color=0x2b2d31
+    )
+    embed.set_image(url=BANNER_URL)
+    await ctx.send(embed=embed, view=PayPanelView())
+
+@bot.command()
+@commands.has_permissions(administrator=True)
 async def setup_leave_btn(ctx):
     try: await ctx.message.delete()
     except: pass
@@ -533,7 +737,17 @@ async def setup_leave_list(ctx):
 async def setup_all(ctx):
     try: await ctx.message.delete()
     except: pass
-    await ctx.send(embed=discord.Embed(title="🛠 แผงควบคุมระบบ", description="สร้างประกาศ / สุ่มวงล้อ / สร้างโหวต / เทสประกาศค้างจ่าย", color=0x2b2d31), view=AnnounceView())
+    embed = discord.Embed(
+        title="🛠 แผงควบคุมระบบ",
+        description=(
+            "**📢 ประกาศ / 🎡 วงล้อ / 📊 โหวต / 🧪 เทส**\n"
+            "**💾 เก็บเงิน** — ดึงยอดคนจ่ายแล้วเข้าคลัง รีเซ็ตทุกคน\n"
+            "**➕ เพิ่ม** — เงิน / เกราะ / กระสุน / CPR / ผ้าพันแผล\n"
+            "**➖ ลด** — เงิน / เกราะ / กระสุน / CPR / ผ้าพันแผล"
+        ),
+        color=0x2b2d31
+    )
+    await ctx.send(embed=embed, view=AnnounceView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -659,6 +873,7 @@ async def on_ready():
     if not midnight_debt_announcer.is_running(): midnight_debt_announcer.start()
     bot.add_view(AnnounceView()); bot.add_view(TicketView()); bot.add_view(CloseTicketView())
     bot.add_view(MoneyTicketView()); bot.add_view(WheelActionView([], "ไม่ระบุ"))
+    bot.add_view(PayPanelView())
     for m in ['land', 'airdrop', 'story', 'leave']:
         bot.add_view(ActivitySignupView(m)); bot.add_view(AdminClearView(m))
 
